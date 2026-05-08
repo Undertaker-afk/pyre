@@ -109,7 +109,12 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   isSearchOpen: false,
 
   async loadFile(file: File) {
-    set({ status: "loading", errorMessage: null });
+    set({
+      status: "loading",
+      errorMessage: null,
+      searchTerm: "",
+      isSearchOpen: false,
+    });
     try {
       const bytes = new Uint8Array(await file.arrayBuffer());
       const binary = await parseBinary(bytes);
@@ -191,22 +196,33 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
 
     const cached = state.cache.get(addr.toString());
     if (type === "code" && cached) {
-      set({
-        tabs: [
-          ...state.tabs,
-          { addr, name, type, code: cached, loading: false },
-        ],
-        focusedAddr: addr,
-        focusedType: type,
+      set((s) => {
+        const newHistory = noHistory
+          ? s.history
+          : [...s.history.slice(0, s.historyIdx + 1), { addr, type }];
+        return {
+          tabs: [...s.tabs, { addr, name, type, code: cached, loading: false }],
+          focusedAddr: addr,
+          focusedType: type,
+          history: newHistory,
+          historyIdx: noHistory ? s.historyIdx : newHistory.length - 1,
+        };
       });
       return;
     }
 
     if (type === "graph") {
-      set({
-        tabs: [...state.tabs, { addr, name, type, loading: false }],
-        focusedAddr: addr,
-        focusedType: type,
+      set((s) => {
+        const newHistory = noHistory
+          ? s.history
+          : [...s.history.slice(0, s.historyIdx + 1), { addr, type }];
+        return {
+          tabs: [...s.tabs, { addr, name, type, loading: false }],
+          focusedAddr: addr,
+          focusedType: type,
+          history: newHistory,
+          historyIdx: noHistory ? s.historyIdx : newHistory.length - 1,
+        };
       });
       return;
     }
@@ -342,6 +358,11 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       cacheOrder: [],
       status: "idle",
       errorMessage: null,
+      bookmarks: new Set(),
+      history: [],
+      historyIdx: -1,
+      searchTerm: "",
+      isSearchOpen: false,
     });
   },
 }));

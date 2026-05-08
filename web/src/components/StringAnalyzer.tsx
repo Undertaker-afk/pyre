@@ -12,7 +12,7 @@ export function StringAnalyzer() {
       len,
       // In a real implementation, we would extract the string bytes here.
       preview: `String at 0x${addr.toString(16)}`,
-    })).sort((a, b) => Number(a.addr - b.addr));
+    })).sort((a, b) => (a.addr < b.addr ? -1 : a.addr > b.addr ? 1 : 0));
   }, [binary]);
 
   return (

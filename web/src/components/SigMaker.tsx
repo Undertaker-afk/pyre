@@ -6,9 +6,9 @@ export function SigMaker({ addr }: { addr: Hex | null }) {
 
   const makeSig = () => {
     if (!binary || addr === null) return "No address focused";
-    const region = binary.regions[0]; // Simplification
+    const region = binary.regions.find(r => addr >= r.vaddr && addr < r.vaddr + BigInt(r.bytes.length));
+    if (!region) return "Address out of bounds";
     const offset = Number(addr - region.vaddr);
-    if (offset < 0 || offset >= region.bytes.length) return "Address out of bounds";
 
     const bytes = region.bytes.slice(offset, offset + 16);
     return Array.from(bytes)

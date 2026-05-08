@@ -48,7 +48,7 @@ export function installLinkProvider(
           ),
           contents: [
             { value: `**${word.word}** (0x${addr.toString(16)})` },
-            { value: `*Command+Click to jump*` },
+            { value: `*${navigator.platform.includes("Mac") ? "Cmd" : "Ctrl"}+Click to jump*` },
           ],
         };
       },

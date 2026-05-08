@@ -6,8 +6,14 @@ export function EntropyMap() {
 
   const data = useMemo(() => {
     if (!binary || binary.regions.length === 0) return [];
-    const region = binary.regions[0];
-    const bytes = region.bytes;
+
+    const bytes = new Uint8Array(binary.regions.reduce((acc, r) => acc + r.bytes.length, 0));
+    let offset = 0;
+    for (const r of binary.regions) {
+      bytes.set(r.bytes, offset);
+      offset += r.bytes.length;
+    }
+
     const chunkSize = Math.max(256, Math.floor(bytes.length / 500));
     const results = [];
 

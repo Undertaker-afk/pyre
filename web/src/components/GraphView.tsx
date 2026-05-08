@@ -21,6 +21,7 @@ interface PcodeBlock {
   id: number;
   addr: string;
   pcode: string[];
+  asm: string[];
 }
 
 interface CfgData {
@@ -31,19 +32,22 @@ interface CfgData {
 type PcodeNodeData = {
   label: string;
   pcode: string[];
+  asm: string[];
   addr: string;
+  showAsm: boolean;
 };
 
 type PcodeNode = Node<PcodeNodeData, "pcode">;
 
 const PcodeNode = ({ data }: NodeProps<PcodeNode>) => {
+  const content = data.showAsm ? data.asm : data.pcode;
   return (
     <div className="bg-ink-900 border border-ink-700 rounded shadow-lg text-[10px] font-mono text-ink-100 min-w-[200px]">
       <div className="bg-ink-800 border-b border-ink-700 px-2 py-0.5 text-ink-400 flex justify-between">
         <span>{data.addr}</span>
       </div>
       <div className="p-2 space-y-0.5">
-        {data.pcode.map((line: string, i: number) => (
+        {content.map((line: string, i: number) => (
           <div key={i} className="whitespace-pre">
             {line}
           </div>
@@ -65,8 +69,8 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = "TB") => {
   dagreGraph.setGraph({ rankdir: direction, ranksep: 50, nodesep: 50 });
 
   nodes.forEach((node) => {
-    const pcodeCount = node.data.pcode.length;
-    const height = 40 + pcodeCount * 15; // Header + lines
+    const lineCount = node.data.showAsm ? node.data.asm.length : node.data.pcode.length;
+    const height = 40 + lineCount * 15; // Header + lines
     dagreGraph.setNode(node.id, { width: 300, height });
   });
 
@@ -96,6 +100,7 @@ export function GraphView({ addr }: { addr: Hex }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAsm, setShowAsm] = useState(true);
 
   useEffect(() => {
     if (!session) return;
@@ -113,7 +118,7 @@ export function GraphView({ addr }: { addr: Hex }) {
         const initialNodes = data.nodes.map((n) => ({
           id: n.id.toString(),
           type: "pcode",
-          data: { label: `Block ${n.id}`, pcode: n.pcode, addr: n.addr },
+          data: { label: `Block ${n.id}`, pcode: n.pcode, asm: n.asm, addr: n.addr, showAsm },
           position: { x: 0, y: 0 },
         }));
 
@@ -154,7 +159,7 @@ export function GraphView({ addr }: { addr: Hex }) {
     return () => {
       cancelled = true;
     };
-  }, [session, addr]);
+  }, [session, addr, showAsm]);
 
   if (loading) {
     return (
@@ -173,7 +178,27 @@ export function GraphView({ addr }: { addr: Hex }) {
   }
 
   return (
-    <div className="h-full bg-ink-950">
+    <div className="h-full bg-ink-950 relative">
+      <div className="absolute top-2 left-2 z-10 flex gap-2">
+        <button
+          className={[
+            "px-2 py-1 text-[10px] font-bold rounded border transition-colors",
+            showAsm ? "bg-accent text-white border-accent" : "bg-ink-900 text-ink-500 border-ink-700",
+          ].join(" ")}
+          onClick={() => setShowAsm(true)}
+        >
+          ASM
+        </button>
+        <button
+          className={[
+            "px-2 py-1 text-[10px] font-bold rounded border transition-colors",
+            !showAsm ? "bg-accent text-white border-accent" : "bg-ink-900 text-ink-500 border-ink-700",
+          ].join(" ")}
+          onClick={() => setShowAsm(false)}
+        >
+          P-CODE
+        </button>
+      </div>
       <ReactFlow
         nodes={nodes}
         edges={edges}

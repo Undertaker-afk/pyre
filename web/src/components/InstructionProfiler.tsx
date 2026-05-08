@@ -29,6 +29,8 @@ export function InstructionProfiler() {
 
   if (stats.length === 0) return null;
 
+  const maxCount = stats.length > 0 ? stats[0][1] : 1;
+
   return (
     <div className="mt-4 p-3 bg-ink-900 border border-ink-800 rounded">
       <div className="text-[10px] uppercase font-bold text-ink-500 mb-2">Complexity Profiler</div>
@@ -39,7 +41,7 @@ export function InstructionProfiler() {
             <div className="flex-1 h-1.5 bg-ink-800 rounded-full overflow-hidden">
               <div
                 className="h-full bg-accent"
-                style={{ width: `${Math.min(100, (count / 10) * 100)}%` }}
+                style={{ width: `${(count / maxCount) * 100}%` }}
               />
             </div>
             <div className="text-[10px] font-mono text-ink-500">{count}</div>

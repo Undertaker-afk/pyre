@@ -117,8 +117,10 @@ export function FunctionList() {
                 <button
                   onClick={() => toggleBookmark(f.addr)}
                   className={[
-                    "opacity-0 group-hover:opacity-100 transition-opacity p-1",
-                    isBookmarked ? "opacity-100 text-accent" : "text-ink-600 hover:text-ink-400",
+                    "transition-opacity p-1",
+                    isBookmarked
+                      ? "opacity-100 text-accent"
+                      : "opacity-0 group-hover:opacity-100 text-ink-600 hover:text-ink-400",
                   ].join(" ")}
                   title={isBookmarked ? "Remove bookmark" : "Add bookmark"}
                 >

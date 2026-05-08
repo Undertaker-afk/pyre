@@ -83,7 +83,11 @@ export function XrefsPanel() {
           onClick={openTab}
         />
       </div>
-      {focused !== null && <CallerTree rootAddr={focused} rootName={focusedTab.name} />}
+      {focused !== null && (
+        <div className="flex-shrink-0 h-48 border-t border-ink-800 overflow-auto">
+          <CallerTree rootAddr={focused} rootName={focusedTab.name} />
+        </div>
+      )}
     </div>
   );
 }

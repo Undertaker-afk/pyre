@@ -9,7 +9,7 @@ export function ImportExportExplorer() {
   const imports = useMemo(() => {
     if (!binary) return [];
     return binary.symbols
-      .filter(([_, name]) => name.includes("@") || name.startsWith("__imp_") || name.startsWith("_"))
+      .filter(([_, name]) => name.includes("@") || name.startsWith("__imp_"))
       .map(([addr, name]) => ({ addr, name }));
   }, [binary]);
 
