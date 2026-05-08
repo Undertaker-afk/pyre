@@ -1,6 +1,7 @@
 import { useMemo, useRef, useEffect } from "react";
 import { useWorkspace } from "@/store/workspace";
 import { Hex } from "@/decompiler/types";
+import { getAllStrings } from "@/parsers/strings";
 
 export function GlobalSearch() {
   const binary = useWorkspace((s) => s.binary);
@@ -30,11 +31,10 @@ export function GlobalSearch() {
     }
 
     // Search strings
-    for (const [addr] of binary.strings) {
-      // In a real implementation, we'd need the actual string bytes here.
-      // For now, we'll just match the address.
-      if (addr.toString(16).includes(q)) {
-        matches.push({ addr, name: `String at 0x${addr.toString(16)}`, type: "string" });
+    const strings = getAllStrings(binary);
+    for (const s of strings) {
+      if (s.content.toLowerCase().includes(q) || s.addr.toString(16).includes(q)) {
+        matches.push({ addr: s.addr, name: s.content, type: "string" });
       }
     }
 

@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { useWorkspace } from "@/store/workspace";
+import { getAllStrings } from "@/parsers/strings";
 
 export function StringAnalyzer() {
   const binary = useWorkspace((s) => s.binary);
@@ -7,12 +8,8 @@ export function StringAnalyzer() {
 
   const strings = useMemo(() => {
     if (!binary) return [];
-    return binary.strings.map(([addr, len]) => ({
-      addr,
-      len,
-      // In a real implementation, we would extract the string bytes here.
-      preview: `String at 0x${addr.toString(16)}`,
-    })).sort((a, b) => (a.addr < b.addr ? -1 : a.addr > b.addr ? 1 : 0));
+    return getAllStrings(binary)
+      .sort((a, b) => (a.addr < b.addr ? -1 : a.addr > b.addr ? 1 : 0));
   }, [binary]);
 
   return (
@@ -26,7 +23,9 @@ export function StringAnalyzer() {
             onClick={() => openTab(s.addr)}
           >
             <span className="text-ink-600 font-mono text-[10px] w-16 shrink-0">0x{s.addr.toString(16)}</span>
-            <span className="text-ink-200 text-xs truncate flex-1">{s.preview}</span>
+            <span className="text-ink-200 text-xs truncate flex-1" title={s.content}>
+              {s.content}
+            </span>
           </button>
         ))}
         {strings.length === 0 && <div className="text-[10px] text-ink-600 italic">No strings indexed</div>}
