@@ -12,7 +12,7 @@ export default defineConfig({
   // — vite needs `base` so emitted asset URLs include that prefix.
   // Local dev + user/org pages live at /, so default to that and
   // override via env in CI.
-  base: process.env.BASE_PATH || "/",
+  base: process.env.BASE_PATH || "./",
   plugins: [react()],
   resolve: {
     alias: {

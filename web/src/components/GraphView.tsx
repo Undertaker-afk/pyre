@@ -1,16 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ReactFlow,
   useNodesState,
   useEdgesState,
-  addEdge,
-  Connection,
-  Edge,
   Handle,
   Position,
-  NodeProps,
+  type NodeProps,
   Background,
   Controls,
+  type Node,
+  type Edge,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import dagre from "dagre";
@@ -28,14 +27,22 @@ interface CfgData {
   edges: { from: number; to: number; type: number }[];
 }
 
-const PcodeNode = ({ data }: NodeProps<{ label: string; pcode: string[]; addr: string }>) => {
+type PcodeNodeData = {
+  label: string;
+  pcode: string[];
+  addr: string;
+};
+
+type PcodeNode = Node<PcodeNodeData, "pcode">;
+
+const PcodeNode = ({ data }: NodeProps<PcodeNode>) => {
   return (
     <div className="bg-ink-900 border border-ink-700 rounded shadow-lg text-[10px] font-mono text-ink-100 min-w-[200px]">
       <div className="bg-ink-800 border-b border-ink-700 px-2 py-0.5 text-ink-400 flex justify-between">
         <span>{data.addr}</span>
       </div>
       <div className="p-2 space-y-0.5">
-        {data.pcode.map((line, i) => (
+        {data.pcode.map((line: string, i: number) => (
           <div key={i} className="whitespace-pre">
             {line}
           </div>
@@ -84,8 +91,8 @@ const getLayoutedElements = (nodes: any[], edges: any[], direction = "TB") => {
 
 export function GraphView({ addr }: { addr: Hex }) {
   const session = useWorkspace((s) => s.session);
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -110,7 +117,6 @@ export function GraphView({ addr }: { addr: Hex }) {
         }));
 
         const initialEdges = data.edges.map((e, i) => {
-          const fromNode = data.nodes.find((n) => n.id === e.from);
           const outCount = data.edges.filter((edge) => edge.from === e.from).length;
 
           let color = "#94a3b8"; // neutral slate-400
