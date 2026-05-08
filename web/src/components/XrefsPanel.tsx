@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useWorkspace } from "@/store/workspace";
 import type { Hex } from "@/decompiler/types";
 import { resolveCall, iterCallsites } from "@/decompiler/resolveCall";
+import { CallerTree } from "./CallerTree";
 
 export function XrefsPanel() {
   const binary = useWorkspace((s) => s.binary);
@@ -82,6 +83,11 @@ export function XrefsPanel() {
           onClick={openTab}
         />
       </div>
+      {focused !== null && (
+        <div className="flex-shrink-0 h-48 border-t border-ink-800 overflow-auto">
+          <CallerTree rootAddr={focused} rootName={focusedTab.name} />
+        </div>
+      )}
     </div>
   );
 }

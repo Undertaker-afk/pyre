@@ -52,6 +52,15 @@ using ::ghidra::SleighArchitecture;
 using ::ghidra::Varnode;
 using ::ghidra::int4;
 using ::ghidra::startDecompilerLibrary;
+using ::ghidra::AssemblyEmit;
+
+class AsmCollector : public AssemblyEmit {
+public:
+    std::string result;
+    void dump(const Address &addr, const std::string &mnem, const std::string &body) override {
+        result = mnem + " " + body;
+    }
+};
 
 bool g_initialized = false;
 
@@ -380,6 +389,32 @@ char *pyre_get_cfg(void *handle, uint64_t address) {
                         firstOp = false;
                     }
                     ++it;
+                }
+            }
+            oss << "], \"asm\": [";
+            if (b->getType() == FlowBlock::t_basic) {
+                Address cur = b->getStart();
+                Address stop = b->getStop();
+                bool firstAsm = true;
+                while (cur < stop) {
+                    if (!firstAsm) oss << ",";
+                    AsmCollector collector;
+                    int4 length = h->arch->translate->printAssembly(collector, cur);
+                    std::string asmStr = collector.result;
+                    oss << "\"";
+                    for (char c : asmStr) {
+                        if (c == '"') oss << "\\\"";
+                        else if (c == '\\') oss << "\\\\";
+                        else if (c == '\n') oss << "\\n";
+                        else if (c == '\r') oss << "\\r";
+                        else if (c == '\t') oss << "\\t";
+                        else if (static_cast<unsigned char>(c) < 32) {
+                        }
+                        else oss << c;
+                    }
+                    oss << "\"";
+                    cur = cur + length;
+                    firstAsm = false;
                 }
             }
             oss << "]}";
