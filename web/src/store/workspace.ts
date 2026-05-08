@@ -37,10 +37,21 @@ interface WorkspaceState {
   status: "idle" | "loading" | "ready" | "error";
   errorMessage: string | null;
 
+  // New features state
+  bookmarks: Set<string>; // addr.toString()
+  history: { addr: Hex; type: "code" | "graph" }[];
+  historyIdx: number;
+  searchTerm: string;
+  isSearchOpen: boolean;
+
   loadFile(file: File): Promise<void>;
-  openTab(addr: Hex, type?: "code" | "graph"): Promise<void>;
+  openTab(addr: Hex, type?: "code" | "graph", noHistory?: boolean): Promise<void>;
   closeTab(addr: Hex, type?: "code" | "graph"): void;
-  focusTab(addr: Hex, type: "code" | "graph"): void;
+  focusTab(addr: Hex, type: "code" | "graph", noHistory?: boolean): void;
+  toggleBookmark(addr: Hex): void;
+  navigateHistory(delta: number): void;
+  setSearchOpen(open: boolean): void;
+  setSearchTerm(term: string): void;
   reset(): void;
 }
 
@@ -91,6 +102,11 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   cacheOrder: [],
   status: "idle",
   errorMessage: null,
+  bookmarks: new Set(),
+  history: [],
+  historyIdx: -1,
+  searchTerm: "",
+  isSearchOpen: false,
 
   async loadFile(file: File) {
     set({ status: "loading", errorMessage: null });
@@ -133,6 +149,9 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
         cache: new Map(),
         cacheOrder: [],
         status: "ready",
+        bookmarks: new Set(),
+        history: [],
+        historyIdx: -1,
       });
 
       // Auto-open the most useful function so the user sees something
@@ -157,13 +176,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     }
   },
 
-  async openTab(addr: Hex, type: "code" | "graph" = "code") {
+  async openTab(addr: Hex, type: "code" | "graph" = "code", noHistory = false) {
     const state = get();
     if (!state.session || !state.binary) return;
 
     const existing = state.tabs.find((t) => t.addr === addr && t.type === type);
     if (existing) {
-      set({ focusedAddr: addr, focusedType: type });
+      get().focusTab(addr, type, noHistory);
       return;
     }
     const fnEntry = state.binary.functions.find((f) => f.addr === addr);
@@ -192,10 +211,15 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       return;
     }
 
-    set({
-      tabs: [...state.tabs, { addr, name, type, loading: true }],
-      focusedAddr: addr,
-      focusedType: type,
+    set((s) => {
+      const newHistory = noHistory ? s.history : [...s.history.slice(0, s.historyIdx + 1), { addr, type }];
+      return {
+        tabs: [...s.tabs, { addr, name, type, loading: true }],
+        focusedAddr: addr,
+        focusedType: type,
+        history: newHistory,
+        historyIdx: noHistory ? s.historyIdx : newHistory.length - 1,
+      };
     });
 
     const t0 = performance.now();
@@ -261,8 +285,44 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     set({ tabs: newTabs, focusedAddr: nextFocus, focusedType: nextType });
   },
 
-  focusTab(addr: Hex, type: "code" | "graph") {
-    set({ focusedAddr: addr, focusedType: type });
+  focusTab(addr: Hex, type: "code" | "graph", noHistory = false) {
+    set((s) => {
+      if (s.focusedAddr === addr && s.focusedType === type) return s;
+      const newHistory = noHistory ? s.history : [...s.history.slice(0, s.historyIdx + 1), { addr, type }];
+      return {
+        focusedAddr: addr,
+        focusedType: type,
+        history: newHistory,
+        historyIdx: noHistory ? s.historyIdx : newHistory.length - 1,
+      };
+    });
+  },
+
+  toggleBookmark(addr: Hex) {
+    set((s) => {
+      const next = new Set(s.bookmarks);
+      const key = addr.toString();
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return { bookmarks: next };
+    });
+  },
+
+  navigateHistory(delta: number) {
+    const s = get();
+    const nextIdx = s.historyIdx + delta;
+    if (nextIdx < 0 || nextIdx >= s.history.length) return;
+    const item = s.history[nextIdx];
+    set({ historyIdx: nextIdx });
+    get().openTab(item.addr, item.type, true);
+  },
+
+  setSearchOpen(isSearchOpen: boolean) {
+    set({ isSearchOpen });
+  },
+
+  setSearchTerm(searchTerm: string) {
+    set({ searchTerm });
   },
 
   reset() {

@@ -17,6 +17,7 @@ import type { ParsedBinary, Hex } from "@/decompiler/types";
 import { resolveCall, iterCallsites } from "@/decompiler/resolveCall";
 
 let providerRegistered = false;
+let hoverProviderRegistered = false;
 let currentNameToAddr: Map<string, Hex> = new Map();
 
 export function installLinkProvider(
@@ -28,6 +29,31 @@ export function installLinkProvider(
   // closure (registered once) sees the new symbol set.
   currentNameToAddr = new Map();
   for (const f of binary.functions) currentNameToAddr.set(f.name, f.addr);
+
+  if (!hoverProviderRegistered) {
+    hoverProviderRegistered = true;
+    monaco.languages.registerHoverProvider("pyre-c", {
+      provideHover(model, position) {
+        const word = model.getWordAtPosition(position);
+        if (!word) return;
+        const addr = resolveCall(word.word, currentNameToAddr);
+        if (addr == null) return;
+
+        return {
+          range: new monaco.Range(
+            position.lineNumber,
+            word.startColumn,
+            position.lineNumber,
+            word.endColumn
+          ),
+          contents: [
+            { value: `**${word.word}** (0x${addr.toString(16)})` },
+            { value: `*Command+Click to jump*` },
+          ],
+        };
+      },
+    });
+  }
 
   if (providerRegistered) return;
   providerRegistered = true;

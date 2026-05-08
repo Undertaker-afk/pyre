@@ -154,7 +154,10 @@ async function doInit(req: InitRequest) {
     // pages — and ALWAYS ends with a slash, so concatenation is safe.
     const base = import.meta.env.BASE_URL;
     mod = (await PyreDecompiler({
-      locateFile: (path: string) => `${base}decompiler/${path}`,
+      locateFile: (path: string) => {
+        if (path.endsWith(".wasm")) return `${base}decompiler/pyre_decompiler.wasm`;
+        return `${base}decompiler/${path}`;
+      },
     })) as EmModule;
     api = bindApi(mod);
     try {

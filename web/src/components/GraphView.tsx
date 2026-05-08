@@ -8,6 +8,7 @@ import {
   type NodeProps,
   Background,
   Controls,
+  MiniMap,
   type Node,
   type Edge,
 } from "@xyflow/react";
@@ -183,6 +184,11 @@ export function GraphView({ addr }: { addr: Hex }) {
       >
         <Background color="#1e293b" gap={20} />
         <Controls />
+        <MiniMap
+          style={{ backgroundColor: "#020617" }}
+          nodeColor="#334155"
+          maskColor="rgba(0, 0, 0, 0.1)"
+        />
       </ReactFlow>
     </div>
   );
