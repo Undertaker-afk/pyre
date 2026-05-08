@@ -12,6 +12,8 @@ name: Pages
 on:
   push:
     branches: [main]
+  pull_request:          # ← Add this
+    types: [opened, synchronize, reopened]
   workflow_dispatch:
 
 permissions:
