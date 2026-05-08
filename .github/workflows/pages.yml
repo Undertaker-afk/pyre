@@ -1,30 +1,23 @@
-# Build the wasm decompiler + the React frontend, deploy to GitHub
-# Pages. Runs on every push to main, plus on demand via the Actions
-# tab. Project page URL: https://<owner>.github.io/<repo>/
-#
-# Caches:
-#   - emsdk install (~1 GB) — keyed on a fixed version tag so cache
-#     stays warm until we bump
-#   - npm dependencies — keyed on package-lock.json hash
-
 name: Pages
 
 on:
   push:
     branches: [main]
-  pull_request:          # ← Add this
+  pull_request:
     types: [opened, synchronize, reopened]
   workflow_dispatch:
 
+# Permissions
 permissions:
   contents: read
   pages: write
   id-token: write
+  pull-requests: write   # for commenting
 
-# Single in-flight run; queued pushes coalesce.
+# Concurrency: one deployment per branch/PR
 concurrency:
-  group: pages
-  cancel-in-progress: false
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -52,22 +45,33 @@ jobs:
         working-directory: web
         run: npm ci
 
+      - name: Determine base path for build
+        id: base
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "BASE_PATH=/pr-${{ github.event.pull_request.number }}/" >> $GITHUB_ENV
+            echo "IS_PR=true" >> $GITHUB_ENV
+          else
+            echo "BASE_PATH=/" >> $GITHUB_ENV
+            echo "IS_PR=false" >> $GITHUB_ENV
+          fi
+
       - name: Build web
         working-directory: web
-        # No BASE_PATH set — site is served at the root of a custom
-        # subdomain (pyre.fuzzing.science via web/public/CNAME), so the
-        # vite default base of "/" is correct. If you ever switch to
-        # serving under a project-page subpath, set:
-        #   BASE_PATH: /${{ github.event.repository.name }}/
+        env:
+          BASE_PATH: ${{ env.BASE_PATH }}
         run: npm run build
 
-      - name: Upload Pages artifact
+      - name: Upload artifact for GitHub Pages (main only)
+        if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
           path: web/dist
 
-  deploy:
+  # Production deployment (main branch)
+  deploy-production:
     needs: build
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -75,3 +79,44 @@ jobs:
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
+
+  # PR Preview deployment
+  deploy-pr-preview:
+    needs: build
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write        # required by peaceiris
+      pull-requests: write
+    steps:
+      - name: Deploy preview to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: web/dist
+          destination_dir: pr-${{ github.event.pull_request.number }}
+          keep_files: true
+          commit_message: "Deploy preview for PR #${{ github.event.pull_request.number }} (${{ github.sha }})"
+
+      - name: Find existing comment
+        uses: peter-evans/find-comment@v3
+        id: fc
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: '## Preview'
+
+      - name: Create or update comment
+        uses: peter-evans/create-or-update-comment@v4
+        with:
+          comment-id: ${{ steps.fc.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body: |
+            ## Preview
+
+            **Live preview**: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/pr-${{ github.event.pull_request.number }}/
+
+            Built from commit `${{ github.sha }}` on `${{ github.ref_name }}`
+
+            > This preview is automatically updated on every push to this PR.
+          edit-mode: replace
