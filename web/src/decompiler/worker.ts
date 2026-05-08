@@ -71,6 +71,7 @@ interface DecompilerApi {
   add_string: (handle: number, addr: bigint, len: bigint) => number;
   add_readonly: (handle: number, addr: bigint, size: bigint) => number;
   decompile: (handle: number, addr: bigint, name: string) => number;
+  get_cfg: (handle: number, addr: bigint) => number;
   free_string: (ptr: number) => void;
   destroy: (handle: number) => void;
 }
@@ -115,6 +116,10 @@ function bindApi(m: EmModule): DecompilerApi {
       "bigint",
       "string",
     ]) as DecompilerApi["decompile"],
+    get_cfg: m.cwrap("pyre_get_cfg", "number", [
+      "number",
+      "bigint",
+    ]) as DecompilerApi["get_cfg"],
     free_string: m.cwrap("pyre_free_string", null, [
       "number",
     ]) as DecompilerApi["free_string"],
@@ -231,6 +236,17 @@ function doDecompile(req: DecompileRequest): string {
   return code;
 }
 
+function doCfg(req: { sessionId: number; address: bigint }): string {
+  if (!mod || !api) throw new Error("worker not initialized");
+  const handle = sessions.get(req.sessionId);
+  if (!handle) throw new Error(`unknown session ${req.sessionId}`);
+  const cstr = api.get_cfg(handle, req.address);
+  if (!cstr) throw new Error("get_cfg returned null");
+  const cfg = mod.UTF8ToString(cstr);
+  api.free_string(cstr);
+  return cfg;
+}
+
 function doClose(req: CloseRequest) {
   if (!api) return;
   const handle = sessions.get(req.sessionId);
@@ -254,6 +270,9 @@ self.addEventListener("message", async (ev: MessageEvent<WorkerRequest>) => {
         break;
       case "decompile":
         reply = { id: req.id, ok: true, code: doDecompile(req) };
+        break;
+      case "cfg":
+        reply = { id: req.id, ok: true, cfg: doCfg(req) };
         break;
       case "close":
         doClose(req);

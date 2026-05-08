@@ -35,6 +35,7 @@ export type WorkerRequest =
   | InitRequest
   | OpenRequest
   | DecompileRequest
+  | CfgRequest
   | CloseRequest;
 
 export interface InitRequest {
@@ -63,6 +64,13 @@ export interface DecompileRequest {
   name?: string;
 }
 
+export interface CfgRequest {
+  id: number;
+  cmd: "cfg";
+  sessionId: number;
+  address: Hex;
+}
+
 export interface CloseRequest {
   id: number;
   cmd: "close";
@@ -70,5 +78,5 @@ export interface CloseRequest {
 }
 
 export type WorkerReply =
-  | { id: number; ok: true; sessionId?: number; code?: string }
+  | { id: number; ok: true; sessionId?: number; code?: string; cfg?: string }
   | { id: number; ok: false; error: string };

@@ -92,6 +92,15 @@ export class DecompilerClient {
     return reply.code;
   }
 
+  async cfgSession(sessionId: number, address: Hex): Promise<string> {
+    const reply = await this.send<{ id: number; ok: true; cfg: string }>({
+      cmd: "cfg",
+      sessionId,
+      address,
+    });
+    return reply.cfg;
+  }
+
   async closeSession(sessionId: number): Promise<void> {
     await this.send({ cmd: "close", sessionId });
   }
@@ -114,6 +123,11 @@ export class DecompilerSession {
   decompile(address: Hex, name?: string): Promise<string> {
     if (this.closed) throw new Error("session closed");
     return this.client.decompileSession(this.sessionId, address, name);
+  }
+
+  cfg(address: Hex): Promise<string> {
+    if (this.closed) throw new Error("session closed");
+    return this.client.cfgSession(this.sessionId, address);
   }
 
   async close() {
