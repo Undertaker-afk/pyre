@@ -12,6 +12,7 @@ const CACHE_CAP = 64;
 export interface OpenTab {
   addr: Hex;
   name: string;
+  type: "code" | "graph";
   code?: string;          // populated once decompile resolves
   loading: boolean;
   error?: string;
@@ -25,6 +26,7 @@ interface WorkspaceState {
   session: DecompilerSession | null;
   tabs: OpenTab[];
   focusedAddr: Hex | null;
+  focusedType: "code" | "graph" | null;
   // Caller index built lazily as we decompile. Map<callee, callers[]>.
   xrefsTo: Map<string, Hex[]>;
   // Cache of decompiled C, keyed by addr-as-string (BigInt isn't a
@@ -36,9 +38,9 @@ interface WorkspaceState {
   errorMessage: string | null;
 
   loadFile(file: File): Promise<void>;
-  openTab(addr: Hex): Promise<void>;
-  closeTab(addr: Hex): void;
-  focusTab(addr: Hex): void;
+  openTab(addr: Hex, type?: "code" | "graph"): Promise<void>;
+  closeTab(addr: Hex, type?: "code" | "graph"): void;
+  focusTab(addr: Hex, type: "code" | "graph"): void;
   reset(): void;
 }
 
@@ -83,6 +85,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   session: null,
   tabs: [],
   focusedAddr: null,
+  focusedType: null,
   xrefsTo: new Map(),
   cache: new Map(),
   cacheOrder: [],
@@ -125,6 +128,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
         session,
         tabs: [],
         focusedAddr: null,
+        focusedType: null,
         xrefsTo: new Map(),
         cache: new Map(),
         cacheOrder: [],
@@ -153,13 +157,13 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     }
   },
 
-  async openTab(addr: Hex) {
+  async openTab(addr: Hex, type: "code" | "graph" = "code") {
     const state = get();
     if (!state.session || !state.binary) return;
 
-    const existing = state.tabs.find((t) => t.addr === addr);
+    const existing = state.tabs.find((t) => t.addr === addr && t.type === type);
     if (existing) {
-      set({ focusedAddr: addr });
+      set({ focusedAddr: addr, focusedType: type });
       return;
     }
     const fnEntry = state.binary.functions.find((f) => f.addr === addr);
@@ -167,17 +171,31 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       fnEntry?.name ?? `FUN_${addr.toString(16)}`;
 
     const cached = state.cache.get(addr.toString());
-    if (cached) {
+    if (type === "code" && cached) {
       set({
-        tabs: [...state.tabs, { addr, name, code: cached, loading: false }],
+        tabs: [
+          ...state.tabs,
+          { addr, name, type, code: cached, loading: false },
+        ],
         focusedAddr: addr,
+        focusedType: type,
+      });
+      return;
+    }
+
+    if (type === "graph") {
+      set({
+        tabs: [...state.tabs, { addr, name, type, loading: false }],
+        focusedAddr: addr,
+        focusedType: type,
       });
       return;
     }
 
     set({
-      tabs: [...state.tabs, { addr, name, loading: true }],
+      tabs: [...state.tabs, { addr, name, type, loading: true }],
       focusedAddr: addr,
+      focusedType: type,
     });
 
     const t0 = performance.now();
@@ -189,9 +207,11 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       const cache = new Map(state.cache);
       const cacheOrder = [...state.cacheOrder];
       const key = addr.toString();
-      cache.set(key, code);
-      cacheOrder.push(key);
-      evictTo({ cache, cacheOrder });
+      if (type === "code") {
+        cache.set(key, code);
+        cacheOrder.push(key);
+        evictTo({ cache, cacheOrder });
+      }
 
       // Index callers for the xrefs panel.
       const xrefsTo = new Map(state.xrefsTo);
@@ -202,7 +222,9 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
         cacheOrder,
         xrefsTo,
         tabs: s.tabs.map((t) =>
-          t.addr === addr ? { ...t, code, loading: false, ms } : t,
+          t.addr === addr && t.type === "code"
+            ? { ...t, code, loading: false, ms }
+            : t,
         ),
       }));
     } catch (err) {
@@ -220,21 +242,27 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
     }
   },
 
-  closeTab(addr: Hex) {
+  closeTab(addr: Hex, type?: "code" | "graph") {
     const state = get();
-    const idx = state.tabs.findIndex((t) => t.addr === addr);
+    const idx = state.tabs.findIndex(
+      (t) => t.addr === addr && (type === undefined || t.type === type),
+    );
     if (idx < 0) return;
-    const newTabs = state.tabs.filter((t) => t.addr !== addr);
+    const tab = state.tabs[idx];
+    const newTabs = state.tabs.filter((_, i) => i !== idx);
     let nextFocus = state.focusedAddr;
-    if (state.focusedAddr === addr) {
+    let nextType = state.focusedType;
+    if (state.focusedAddr === addr && state.focusedType === tab.type) {
       // Prefer the tab to the left of the closed one; fall back to the right.
-      nextFocus = newTabs[Math.max(0, idx - 1)]?.addr ?? null;
+      const nextTab = newTabs[Math.max(0, idx - 1)];
+      nextFocus = nextTab?.addr ?? null;
+      nextType = nextTab?.type ?? null;
     }
-    set({ tabs: newTabs, focusedAddr: nextFocus });
+    set({ tabs: newTabs, focusedAddr: nextFocus, focusedType: nextType });
   },
 
-  focusTab(addr: Hex) {
-    set({ focusedAddr: addr });
+  focusTab(addr: Hex, type: "code" | "graph") {
+    set({ focusedAddr: addr, focusedType: type });
   },
 
   reset() {
@@ -248,6 +276,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       session: null,
       tabs: [],
       focusedAddr: null,
+      focusedType: null,
       xrefsTo: new Map(),
       cache: new Map(),
       cacheOrder: [],

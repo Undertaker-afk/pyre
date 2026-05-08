@@ -137,6 +137,7 @@ EXPORTED_FUNCS='[
   "_pyre_add_string",
   "_pyre_add_readonly",
   "_pyre_decompile",
+  "_pyre_get_cfg",
   "_pyre_free_string",
   "_pyre_destroy",
   "_malloc",

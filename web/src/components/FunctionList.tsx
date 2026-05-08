@@ -64,6 +64,10 @@ export function FunctionList() {
               <button
                 key={f.addr.toString()}
                 onClick={() => openTab(f.addr)}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  openTab(f.addr, "graph");
+                }}
                 className={[
                   "absolute inset-x-0 px-3 text-left text-xs font-mono",
                   "flex items-center gap-2 truncate",

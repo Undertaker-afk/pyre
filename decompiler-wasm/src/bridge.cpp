@@ -36,12 +36,16 @@ namespace {
 
 using ::ghidra::Address;
 using ::ghidra::AddrSpace;
+using ::ghidra::BlockBasic;
+using ::ghidra::BlockGraph;
 using ::ghidra::Datatype;
 using ::ghidra::DataUnavailError;
+using ::ghidra::FlowBlock;
 using ::ghidra::DocumentStorage;
 using ::ghidra::FunctionSymbol;
 using ::ghidra::Funcdata;
 using ::ghidra::LowlevelError;
+using ::ghidra::PcodeOp;
 using ::ghidra::Range;
 using ::ghidra::Scope;
 using ::ghidra::SleighArchitecture;
@@ -313,6 +317,98 @@ char *pyre_decompile(void *handle, uint64_t address, const char *name) {
         return returnError(e.explain);
     } catch (const std::exception &e) {
         return returnError(e.what());
+    }
+}
+
+EMSCRIPTEN_KEEPALIVE
+char *pyre_get_cfg(void *handle, uint64_t address) {
+    if (!handle) return nullptr;
+    auto *h = static_cast<DecompilerHandle *>(handle);
+
+    try {
+        AddrSpace *space = h->arch->getDefaultCodeSpace();
+        Address addr(space, address);
+        Scope *scope = h->arch->symboltab->getGlobalScope();
+
+        Funcdata *fd = scope->findFunction(addr);
+        if (fd == nullptr) {
+            std::ostringstream nm;
+            nm << "FUN_" << std::hex << address;
+            fd = scope->addFunction(addr, nm.str())->getFunction();
+        } else {
+            h->arch->clearAnalysis(fd);
+        }
+
+        auto action = h->arch->allacts.getCurrent();
+        action->reset(*fd);
+        action->perform(*fd);
+
+        const BlockGraph &blocks = fd->getBasicBlocks();
+        std::ostringstream oss;
+        oss << "{\"nodes\": [";
+        for (int i = 0; i < blocks.getSize(); ++i) {
+            FlowBlock *b = blocks.getBlock(i);
+            if (i > 0) oss << ",";
+            oss << "{\"id\":" << b->getIndex()
+                << ",\"addr\":\"0x" << std::hex << b->getStart().getOffset() << std::dec << "\""
+                << ",\"pcode\": [";
+
+            if (b->getType() == FlowBlock::t_basic) {
+                BlockBasic *bb = static_cast<BlockBasic *>(b);
+                auto it = bb->beginOp();
+                bool firstOp = true;
+                while (it != bb->endOp()) {
+                    PcodeOp *op = *it;
+                    if (!op->isDead()) {
+                        if (!firstOp) oss << ",";
+                        std::ostringstream opOss;
+                        op->printRaw(opOss);
+                        std::string opStr = opOss.str();
+                        oss << "\"";
+                        for (char c : opStr) {
+                            if (c == '"') oss << "\\\"";
+                            else if (c == '\\') oss << "\\\\";
+                            else if (c == '\n') oss << "\\n";
+                            else if (c == '\r') oss << "\\r";
+                            else if (c == '\t') oss << "\\t";
+                            else if (static_cast<unsigned char>(c) < 32) {
+                                // escape control chars
+                            }
+                            else oss << c;
+                        }
+                        oss << "\"";
+                        firstOp = false;
+                    }
+                    ++it;
+                }
+            }
+            oss << "]}";
+        }
+        oss << "], \"edges\": [";
+        bool firstEdge = true;
+        for (int i = 0; i < blocks.getSize(); ++i) {
+            FlowBlock *b = blocks.getBlock(i);
+            for (int j = 0; j < b->sizeOut(); ++j) {
+                if (!firstEdge) oss << ",";
+                oss << "{\"from\":" << b->getIndex()
+                    << ",\"to\":" << b->getOut(j)->getIndex()
+                    << ",\"type\":" << j << "}";
+                firstEdge = false;
+            }
+        }
+        oss << "]}";
+
+        std::string out = oss.str();
+        char *buf = static_cast<char *>(std::malloc(out.size() + 1));
+        if (!buf) return nullptr;
+        std::memcpy(buf, out.data(), out.size());
+        buf[out.size()] = '\0';
+        return buf;
+    } catch (const std::exception &e) {
+        std::cerr << "pyre_get_cfg error: " << e.what() << std::endl;
+        return nullptr;
+    } catch (...) {
+        return nullptr;
     }
 }
 
